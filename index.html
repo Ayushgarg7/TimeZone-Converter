@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Time Zone & Regional Database Explorer</title>
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --bg-card: #151e32;
+      --bg-input: #1f2a44;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --border: #2a3756;
+      --badge-bg: rgba(56, 189, 248, 0.1);
+      --ahead: #10b981;
+      --behind: #f59e0b;
+      --same: #a855f7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+      color: var(--text-main);
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    /* Controls Dashboard */
+    .dashboard-controls {
+      background: var(--bg-card);
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 280px;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--accent);
+    }
+
+    .region-filter {
+      min-width: 200px;
+    }
+
+    select, input[type="datetime-local"] {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    select:focus, input[type="datetime-local"]:focus {
+      border-color: var(--accent);
+    }
+
+    .time-mode-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      padding-top: 1.2rem;
+    }
+
+    .toggle-group {
+      display: flex;
+      gap: 0.5rem;
+      background: var(--bg-input);
+      padding: 0.3rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .toggle-btn {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      padding: 0.6rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .toggle-btn.active {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .custom-time-picker {
+      display: none;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .custom-time-picker.visible {
+      display: flex;
+    }
+
+    /* Results Summary */
+    .results-info {
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Grid Layout */
+    .zones-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.2rem;
+    }
+
+    .zone-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .zone-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .region-badge {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      background: var(--badge-bg);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .iana-code {
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .location-info h3 {
+      font-size: 1.3rem;
+      color: var(--text-main);
+      margin-top: 0.3rem;
+    }
+
+    .location-info p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .card-bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .time-display .time {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.1;
+    }
+
+    .time-display .date {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .meta-display {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      align-items: flex-end;
+    }
+
+    .utc-offset {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      background: var(--bg-input);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .diff-badge {
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .diff-ahead { color: var(--ahead); }
+    .diff-behind { color: var(--behind); }
+    .diff-same { color: var(--same); }
+
+    .no-results {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem;
+      background: var(--bg-card);
+      border-radius: 12px;
+      color: var(--text-muted);
+      border: 1px dashed var(--border);
+    }
+
+    @media (max-width: 600px) {
+      .filter-row, .time-mode-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Global Time Zone & Regional Database</h1>
+      <p class="subtitle">Explore, search, and calculate live time differentials across every continent and country</p>
+    </header>
+
+    <div class="dashboard-controls">
+      <div class="filter-row">
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Search by country, city, or time zone (e.g., Japan, London, Pacific)...">
+        </div>
+        <div class="region-filter">
+          <select id="region-select">
+            <option value="ALL">All Continents / Regions</option>
+            <option value="Africa">Africa</option>
+            <option value="Americas">Americas</option>
+            <option value="Asia">Asia</option>
+            <option value="Europe">Europe</option>
+            <option value="Oceania">Oceania / Pacific</option>
+            <option value="UTC">UTC / Global</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="time-mode-row">
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="btn-live">Live Current Time</button>
+          <button class="toggle-btn" id="btn-custom">Custom Scheduled Time</button>
+        </div>
+        <div class="custom-time-picker" id="custom-picker-container">
+          <label for="custom-datetime" style="font-size: 0.85rem; color: var(--text-muted);">Target Date/Time:</label>
+          <input type="datetime-local" id="custom-datetime">
+        </div>
+      </div>
+    </div>
+
+    <div class="results-info">
+      <span id="showing-count">Showing 0 locations</span>
+      <span id="local-ref-label">Relative to your browser time</span>
+    </div>
+
+    <div class="zones-grid" id="zones-container"></div>
+  </div>
+
+  <script>
+    // --- Comprehensive Global Time Zone Dataset ---
+    const TIMEZONE_DATABASE = [
+      // Americas
+      { region: "Americas", country: "United States", city: "New York", iana: "America/New_York" },
+      { region: "Americas", country: "United States", city: "Chicago", iana: "America/Chicago" },
+      { region: "Americas", country: "United States", city: "Denver", iana: "America/Denver" },
+      { region: "Americas", country: "United States", city: "Los Angeles", iana: "America/Los_Angeles" },
+      { region: "Americas", country: "United States", city: "Phoenix (No DST)", iana: "America/Phoenix" },
+      { region: "Americas", country: "United States", city: "Honolulu", iana: "Pacific/Honolulu" },
+      { region: "Americas", country: "Canada", city: "Toronto", iana: "America/Toronto" },
+      { region: "Americas", country: "Canada", city: "Vancouver", iana: "America/Vancouver" },
+      { region: "Americas", country: "Mexico", city: "Mexico City", iana: "America/Mexico_City" },
+      { region: "Americas", country: "Brazil", city: "São Paulo", iana: "America/Sao_Paulo" },
+      { region: "Americas", country: "Argentina", city: "Buenos Aires", iana: "America/Argentina/Buenos_Aires" },
+      { region: "Americas", country: "Colombia", city: "Bogotá", iana: "America/Bogota" },
+      { region: "Americas", country: "Chile", city: "Santiago", iana: "America/Santiago" },
+      { region: "Americas", country: "Peru", city: "Lima", iana: "America/Lima" },
+
+      // Europe
+      { region: "Europe", country: "United Kingdom", city: "London", iana: "Europe/London" },
+      { region: "Europe", country: "France", city: "Paris", iana: "Europe/Paris" },
+      { region: "Europe", country: "Germany", city: "Berlin", iana: "Europe/Berlin" },
+      { region: "Europe", country: "Spain", city: "Madrid", iana: "Europe/Madrid" },
+      { region: "Europe", country: "Italy", city: "Rome", iana: "Europe/Rome" },
+      { region: "Europe", country: "Netherlands", city: "Amsterdam", iana: "Europe/Amsterdam" },
+      { region: "Europe", country: "Switzerland", city: "Zurich", iana: "Europe/Zurich" },
+      { region: "Europe", country: "Greece", city: "Athens", iana: "Europe/Athens" },
+      { region: "Europe", country: "Russia", city: "Moscow", iana: "Europe/Moscow" },
+      { region: "Europe", country: "Turkey", city: "Istanbul", iana: "Europe/Istanbul" },
+      { region: "Europe", country: "Ukraine", city: "Kyiv", iana: "Europe/Kyiv" },
+
+      // Asia
+      { region: "Asia", country: "India", city: "Kolkata / Bengaluru", iana: "Asia/Kolkata" },
+      { region: "Asia", country: "China", city: "Shanghai / Beijing", iana: "Asia/Shanghai" },
+      { region: "Asia", country: "Japan", city: "Tokyo", iana: "Asia/Tokyo" },
+      { region: "Asia", country: "South Korea", city: "Seoul", iana: "Asia/Seoul" },
+      { region: "Asia", country: "United Arab Emirates", city: "Dubai", iana: "Asia/Dubai" },
+      { region: "Asia", country: "Saudi Arabia", city: "Riyadh", iana: "Asia/Riyadh" },
+      { region: "Asia", country: "Singapore", city: "Singapore", iana: "Asia/Singapore" },
+      { region: "Asia", country: "Indonesia", city: "Jakarta", iana: "Asia/Jakarta" },
+      { region: "Asia", country: "Thailand", city: "Bangkok", iana: "Asia/Bangkok" },
+      { region: "Asia", country: "Vietnam", city: "Ho Chi Minh City", iana: "Asia/Ho_Chi_Minh" },
+      { region: "Asia", country: "Israel", city: "Jerusalem", iana: "Asia/Jerusalem" },
+      { region: "Asia", country: "Pakistan", city: "Karachi", iana: "Asia/Karachi" },
+      { region: "Asia", country: "Bangladesh", city: "Dhaka", iana: "Asia/Dhaka" },
+
+      // Africa
+      { region: "Africa", country: "Egypt", city: "Cairo", iana: "Africa/Cairo" },
+      { region: "Africa", country: "South Africa", city: "Johannesburg", iana: "Africa/Johannesburg" },
+      { region: "Africa", country: "Nigeria", city: "Lagos", iana: "Africa/Lagos" },
+      { region: "Africa", country: "Kenya", city: "Nairobi", iana: "Africa/Nairobi" },
+      { region: "Africa", country: "Morocco", city: "Casablanca", iana: "Africa/Casablanca" },
+      { region: "Africa", country: "Ethiopia", city: "Addis Ababa", iana: "Africa/Addis_Ababa" },
+      { region: "Africa", country: "Ghana", city: "Accra", iana: "Africa/Accra" },
+
+      // Oceania
+      { region: "Oceania", country: "Australia", city: "Sydney", iana: "Australia/Sydney" },
+      { region: "Oceania", country: "Australia", city: "Melbourne", iana: "Australia/Melbourne" },
+      { region: "Oceania", country: "Australia", city: "Perth", iana: "Australia/Perth" },
+      { region: "Oceania", country: "Australia", city: "Brisbane", iana: "Australia/Brisbane" },
+      { region: "Oceania", country: "New Zealand", city: "Auckland", iana: "Pacific/Auckland" },
+      { region: "Oceania", country: "Fiji", city: "Suva", iana: "Pacific/Fiji" },
+
+      // UTC / Global
+      { region: "UTC", country: "Global Standard", city: "Universal Time", iana: "UTC" }
+    ];
+
+    // --- State Variables ---
+    let isLiveMode = true;
+    let customTimestamp = new Date();
+    let liveTimer = null;
+
+    // --- DOM Elements ---
+    const searchInput = document.getElementById('search-input');
+    const regionSelect = document.getElementById('region-select');
+    const btnLive = document.getElementById('btn-live');
+    const btnCustom = document.getElementById('btn-custom');
+    const customPickerContainer = document.getElementById('custom-picker-container');
+    const customDatetimeInput = document.getElementById('custom-datetime');
+    const zonesContainer = document.getElementById('zones-container');
+    const showingCount = document.getElementById('showing-count');
+    const localRefLabel = document.getElementById('local-ref-label');
+
+    // --- Initialize App ---
+    function init() {
+      // Set local browser timezone label
+      const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      localRefLabel.textContent = `Relative to your browser: ${userTz}`;
+
+      // Set default custom date input to now
+      const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      customDatetimeInput.value = nowIso;
+
+      // Event Listeners
+      searchInput.addEventListener('input', render);
+      regionSelect.addEventListener('change', render);
+
+      btnLive.addEventListener('click', () => {
+        isLiveMode = true;
+        btnLive.classList.add('active');
+        btnCustom.classList.remove('active');
+        customPickerContainer.classList.remove('visible');
+        startLiveTimer();
+        render();
+      });
+
+      btnCustom.addEventListener('click', () => {
+        isLiveMode = false;
+        btnCustom.classList.add('active');
+        btnLive.classList.remove('active');
+        customPickerContainer.classList.add('visible');
+        stopLiveTimer();
+        updateCustomTimestamp();
+        render();
+      });
+
+      customDatetimeInput.addEventListener('change', () => {
+        updateCustomTimestamp();
+        render();
+      });
+
+      startLiveTimer();
+      render();
+    }
+
+    function startLiveTimer() {
+      if (liveTimer) clearInterval(liveTimer);
+      liveTimer = setInterval(() => {
+        if (isLiveMode) render();
+      }, 1000);
+    }
+
+    function stopLiveTimer() {
+      if (liveTimer) clearInterval(liveTimer);
+    }
+
+    function updateCustomTimestamp() {
+      const val = customDatetimeInput.value;
+      if (val) {
+        customTimestamp = new Date(val);
+      }
+    }
+
+    // --- Native Time Math Helpers ---
+    function getOffsetMinutes(targetDate, timeZone) {
+      // Calculate exact UTC offset in minutes for a target timezone at a specific date
+      const utcDate = new Date(targetDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+      const tzDate = new Date(targetDate.toLocaleString('en-US', { timeZone }));
+      return Math.round((tzDate.getTime() - utcDate.getTime()) / 60000);
+    }
+
+    function formatUtcOffsetString(offsetMinutes) {
+      const sign = offsetMinutes >= 0 ? "+" : "-";
+      const absMins = Math.abs(offsetMinutes);
+      const hours = Math.floor(absMins / 60).toString().padStart(2, '0');
+      const mins = (absMins % 60).toString().padStart(2, '0');
+      return `UTC${sign}${hours}:${mins}`;
+    }
+
+    function getRelativeDiffBadge(targetOffsetMins, localOffsetMins) {
+      const diffMins = targetOffsetMins - localOffsetMins;
+      if (diffMins === 0) {
+        return `<span class="diff-badge diff-same">Same time</span>`;
+      }
+      const diffHours = diffMins / 60;
+      const formattedHours = Number.isInteger(diffHours) ? Math.abs(diffHours) : Math.abs(diffHours).toFixed(1);
+      
+      if (diffHours > 0) {
+        return `<span class="diff-badge diff-ahead">+${formattedHours} hrs ahead</span>`;
+      } else {
+        return `<span class="diff-badge diff-behind">-${formattedHours} hrs behind</span>`;
+      }
+    }
+
+    // --- Main Render Loop ---
+    function render() {
+      const activeDate = isLiveMode ? new Date() : customTimestamp;
+      const userLocalOffsetMins = -activeDate.getTimezoneOffset(); // browser offset in mins
+
+      const searchTerm = searchInput.value.trim().toLowerCase();
+      const selectedRegion = regionSelect.value;
+
+      // Filter Dataset
+      const filteredZones = TIMEZONE_DATABASE.filter(item => {
+        const matchesRegion = selectedRegion === "ALL" || item.region === selectedRegion;
+        const matchesSearch = 
+          item.country.toLowerCase().includes(searchTerm) ||
+          item.city.toLowerCase().includes(searchTerm) ||
+          item.iana.toLowerCase().includes(searchTerm) ||
+          item.region.toLowerCase().includes(searchTerm);
+        return matchesRegion && matchesSearch;
+      });
+
+      showingCount.textContent = `Showing ${filteredZones.length} of ${TIMEZONE_DATABASE.length} locations`;
+
+      if (filteredZones.length === 0) {
+        zonesContainer.innerHTML = `<div class="no-results">No locations found matching your search or filter criteria.</div>`;
+        return;
+      }
+
+      // Generate HTML Cards
+      const cardsHtml = filteredZones.map(item => {
+        const targetOffsetMins = getOffsetMinutes(activeDate, item.iana);
+        const offsetString = formatUtcOffsetString(targetOffsetMins);
+        const diffBadgeHtml = getRelativeDiffBadge(targetOffsetMins, userLocalOffsetMins);
+
+        // Format local time & date cleanly using native Intl
+        const timeStr = activeDate.toLocaleTimeString('en-US', {
+          timeZone: item.iana,
+          hour: '2-digit', minute: '2-digit', second: isLiveMode ? '2-digit' : undefined,
+          hour12: true
+        });
+
+        const dateStr = activeDate.toLocaleDateString('en-US', {
+          timeZone: item.iana,
+          weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+        });
+
+        return `
+          <div class="zone-card">
+            <div>
+              <div class="card-top">
+                <span class="region-badge">${item.region}</span>
+                <span class="iana-code">${item.iana}</span>
+              </div>
+              <div class="location-info">
+                <h3>${item.city}</h3>
+                <p>${item.country}</p>
+              </div>
+            </div>
+            
+            <div class="card-bottom">
+              <div class="time-display">
+                <div class="time">${timeStr}</div>
+                <div class="date">${dateStr}</div>
+              </div>
+              <div class="meta-display">
+                <span class="utc-offset">${offsetString}</span>
+                ${diffBadgeHtml}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      zonesContainer.innerHTML = cardsHtml;
+    }
+
+    // Run
+    init();
+  </script>
+</body>
+</html>
